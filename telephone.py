@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+#ssh-keygen -f /root/workingdir/yourworkernames -t ecdsa -b 521
+
 import sys
 import paramiko
 
